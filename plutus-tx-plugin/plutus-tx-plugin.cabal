@@ -280,6 +280,9 @@ test-suite plutus-ledger-api-plugin-test
     Spec.ReturnUnit.V2
     Spec.ReturnUnit.V3
     Spec.ScriptSize
+    Spec.TargetProtocolVersion
+    Spec.TargetProtocolVersion.PV12
+    Spec.TargetProtocolVersion.Validator
     Spec.V4.Encoding
     Spec.Value
     Spec.Value.WithCurrencySymbol
