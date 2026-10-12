@@ -14,10 +14,10 @@ import PlutusPrelude
 import PlutusTx.Code (CompiledCode)
 import PlutusTx.Prelude (BuiltinData, BuiltinUnit)
 import PlutusTx.TH (compile)
-import Spec.TargetProtocolVersion.PV12 (shapeValidatorPV12)
-import Spec.TargetProtocolVersion.Validator (shapeValidator)
+import Spec.TargetProtocolVersion.Validator (shapeValidator, shapeValidatorPV12)
 
 import Control.Monad.Writer (runWriterT)
+import Data.List (isInfixOf)
 import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase)
 
@@ -34,7 +34,12 @@ tests =
     , testGroup
         "compiled for PV12"
         [ expect True "evaluates at PV12" dijkstraPV shapeValidatorPV12 rect
-        , expect False "fails at PV11" vanRossemPV shapeValidatorPV12 rect
+        , testCase "fails at PV11: no case on Data" $
+            case evaluate vanRossemPV shapeValidatorPV12 rect of
+              Left err
+                | "'case' over a value of a built-in type failed" `isInfixOf` show err -> pure ()
+                | otherwise -> assertFailure ("wrong error: " <> show err)
+              Right _ -> assertFailure "evaluation succeeded"
         ]
     ]
   where
@@ -58,10 +63,16 @@ expect
   -> CompiledCode (BuiltinData -> BuiltinUnit)
   -> V3.Data
   -> TestTree
-expect success name pv code arg = testCase name $ case (success, res) of
+expect success name pv code arg = testCase name $ case (success, evaluate pv code arg) of
   (True, Left err) -> assertFailure ("evaluation failed: " <> show err)
   (False, Right _) -> assertFailure "evaluation succeeded"
   _ -> pure ()
+
+evaluate
+  :: MajorProtocolVersion
+  -> CompiledCode (BuiltinData -> BuiltinUnit)
+  -> V3.Data
+  -> Either V3.EvaluationError V3.ExBudget
+evaluate pv code arg = snd $ V3.evaluateScriptCounting pv V3.Quiet evalCtx script arg
   where
     script = either (error . show) id $ V3.deserialiseScript pv (V3.serialiseCompiledCode code)
-    (_, res) = V3.evaluateScriptCounting pv V3.Quiet evalCtx script arg
