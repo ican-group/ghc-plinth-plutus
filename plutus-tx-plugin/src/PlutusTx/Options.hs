@@ -43,6 +43,8 @@ import Type.Reflection
 
 data PluginOptions = PluginOptions
   { _posPlcTargetVersion :: PLC.Version
+  , _posTargetProtocolVersion :: Int
+  -- ^ See Note [Target protocol version] in PlutusTx.Compiler.Types
   , _posDoTypecheck :: Bool
   , _posDeferErrors :: Bool
   , _posConservativeOpts :: Bool
@@ -174,6 +176,11 @@ pluginOptions =
                   (PIR.DatatypeCompilationOpts PIR.ScottEncoding)
               ]
           )
+    , let k = "target-protocol-version"
+          desc =
+            "The major protocol version of the target chain. It selects the "
+              <> "built-in types that the compiled code can 'case' on."
+       in (k, PluginOption typeRep (readOption k) posTargetProtocolVersion desc [])
     , let k = "typecheck"
           desc = "Perform type checking during compilation."
        in (k, PluginOption typeRep (setTrue k) posDoTypecheck desc [])
@@ -410,6 +417,7 @@ defaultPluginOptions :: PluginOptions
 defaultPluginOptions =
   PluginOptions
     { _posPlcTargetVersion = PLC.plcVersion110
+    , _posTargetProtocolVersion = 11
     , _posDoTypecheck = True
     , _posDeferErrors = False
     , _posConservativeOpts = False
