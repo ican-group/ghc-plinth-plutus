@@ -1058,7 +1058,7 @@ compileExpr mloc e = do
           Nothing -> throwPlain $ CompilationError "'mkNil' applied to an unknown type"
 
     compileIntegerCase resultTy scrutinee branches =
-      case coDatatypeStyle opts of
+      case builtinDatatypeStyle opts of
         PIR.SumsOfProducts ->
           pure $ PIR.kase annAlwaysInline resultTy scrutinee branches
         PIR.ScottEncoding -> do
@@ -1086,11 +1086,11 @@ compileExpr mloc e = do
                     ]
           pure $ mkChain (0 :: Integer) branches
 
-    compileDataCase resultTy scrutinee branches =
-      case coDatatypeStyle opts of
-        PIR.SumsOfProducts ->
+    -- See Note [Target protocol version] in PlutusTx.Compiler.Types
+    compileDataCase resultTy scrutinee branches
+      | canCaseOnData opts =
           pure $ PIR.kase annAlwaysInline resultTy scrutinee branches
-        PIR.ScottEncoding -> do
+      | otherwise = do
           pairName <- safeFreshName "dataConstr"
           let integerTy = PLC.mkTyBuiltin @_ @Integer annMayInline
               dataTy = PLC.mkTyBuiltin @_ @Data annMayInline
