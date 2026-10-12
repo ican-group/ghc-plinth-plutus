@@ -680,17 +680,20 @@ compileMarkedExpr _locStr codeTy origE = do
           [l | _posCoverageAll opts, l <- [minBound .. maxBound]]
             ++ [LocationCoverage | _posCoverageLocation opts]
             ++ [BooleanCoverage | _posCoverageBoolean opts]
-  let ctx =
+  -- See Note [Target protocol version] in PlutusTx.Compiler.Types
+  let plcTargetVersion = plcTargetVersionFor opts
+      ctx =
         CompileContext
           { ccOpts =
               CompileOptions
                 { coProfile = _posProfile opts
                 , coCoverage = coverage
                 , coDatatypeStyle =
-                    if _posPlcTargetVersion opts < PLC.plcVersion110
+                    if plcTargetVersion < PLC.plcVersion110
                       then PIR.ScottEncoding
                       else PIR._dcoStyle $ _posDatatypes opts
-                , coPlcTargetVersion = _posPlcTargetVersion opts
+                , coPlcTargetVersion = plcTargetVersion
+                , coTargetProtocolVersion = _posTargetProtocolVersion opts
                 , coRemoveTrace = _posRemoveTrace opts
                 , coInlineFix = _posInlineFix opts
                 }
@@ -776,7 +779,7 @@ runCompiler packageName moduleName opts expr = do
     modifyError (NoContext . PIRError . PIR.PLCTypeError) $
       PLC.getDefTypeCheckConfig PIR.noProvenance
   datatypeStyle <- asks $ coDatatypeStyle . ccOpts
-  let plcVersion = opts ^. posPlcTargetVersion
+  let plcVersion = plcTargetVersionFor opts
       hints = UPLC.InlineHints $ \ann _ -> case ann of
         -- See Note [The problem of inlining destructors]
         -- We want to inline destructors, but even in UPLC our inlining heuristics

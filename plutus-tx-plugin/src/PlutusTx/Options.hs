@@ -43,6 +43,8 @@ import Type.Reflection
 
 data PluginOptions = PluginOptions
   { _posPlcTargetVersion :: PLC.Version
+  , _posTargetProtocolVersion :: Int
+  -- ^ See Note [Target protocol version] in PlutusTx.Compiler.Types
   , _posDoTypecheck :: Bool
   , _posDeferErrors :: Bool
   , _posConservativeOpts :: Bool
@@ -174,6 +176,12 @@ pluginOptions =
                   (PIR.DatatypeCompilationOpts PIR.ScottEncoding)
               ]
           )
+    , let k = "target-protocol-version"
+          desc =
+            "The major protocol version of the target chain. It selects the "
+              <> "built-in types that the compiled code can 'case' on, and caps "
+              <> "the target Plutus Core version."
+       in (k, PluginOption typeRep (readOption k) posTargetProtocolVersion desc [])
     , let k = "typecheck"
           desc = "Perform type checking during compilation."
        in (k, PluginOption typeRep (setTrue k) posDoTypecheck desc [])
@@ -410,6 +418,7 @@ defaultPluginOptions :: PluginOptions
 defaultPluginOptions =
   PluginOptions
     { _posPlcTargetVersion = PLC.plcVersion120
+    , _posTargetProtocolVersion = 11
     , _posDoTypecheck = True
     , _posDeferErrors = False
     , _posConservativeOpts = False
@@ -489,6 +498,14 @@ toKeyValue opt = case List.elemIndex '=' opt of
   Just idx ->
     let (lhs, rhs) = splitAt idx opt
      in (Text.pack lhs, Just (Text.pack (drop 1 rhs)))
+
+-- | The Plutus Core version of the compiled code: target-version, capped at
+-- 1.1.0 when the target protocol version is below 12, the first one that
+-- permits 1.2.0. See Note [Target protocol version] in PlutusTx.Compiler.Types.
+plcTargetVersionFor :: PluginOptions -> PLC.Version
+plcTargetVersionFor opts
+  | _posTargetProtocolVersion opts < 12 = min (_posPlcTargetVersion opts) PLC.plcVersion110
+  | otherwise = _posPlcTargetVersion opts
 
 {-| Parses the arguments that were given to ghc at commandline as
  "-fplugin-opt Plinth.Plugin:opt" or "-fplugin-opt Plinth.Plugin:opt=val" -}

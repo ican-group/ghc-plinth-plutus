@@ -52,9 +52,41 @@ data CompileOptions = CompileOptions
   , coCoverage :: CoverageOpts
   , coDatatypeStyle :: PIR.DatatypeStyle
   , coPlcTargetVersion :: PLC.Version
+  -- ^ See Note [Target protocol version]
+  , coTargetProtocolVersion :: Int
+  -- ^ See Note [Target protocol version]
   , coRemoveTrace :: Bool
   , coInlineFix :: Bool
   }
+
+{- Note [Target protocol version]
+The ledger permits Plutus Core 1.2.0 only from major protocol version 12
+(Dijkstra), and a 'case' on values of built-in types only from some major
+protocol versions on:
+
+  * Bool, unit, pairs, lists and Integer: from 11 (van Rossem);
+  * Data: from 12, and only in Plutus Core 1.2.0.
+
+A script with such a 'case', or with a Plutus Core version that is too new,
+fails on a chain with an older protocol version.
+
+The plugin option target-protocol-version (default 11, the version of mainnet)
+selects the code for the built-in types and caps the Plutus Core version:
+
+  * below 11, the builtins that do not need 'case' (ifThenElse, chooseUnit,
+    chooseList, headList, fstPair, ...), as with ScottEncoding;
+  * below 12, Plutus Core 1.1.0 at most (plcTargetVersionFor in
+    PlutusTx.Options), hence no 'case' on Data: caseData compiles to
+    unConstrData and a 'case' on the constructor index ('case' on the pair
+    from 11, fstPair and sndPair below).
+-}
+
+-- | The encoding of the built-in types (Bool, unit, pairs, lists, and Integer
+-- in caseInteger). See Note [Target protocol version].
+builtinDatatypeStyle :: CompileOptions -> PIR.DatatypeStyle
+builtinDatatypeStyle opts
+  | coTargetProtocolVersion opts < 11 = PIR.ScottEncoding
+  | otherwise = coDatatypeStyle opts
 
 data CompileContext uni fun = CompileContext
   { ccOpts :: CompileOptions

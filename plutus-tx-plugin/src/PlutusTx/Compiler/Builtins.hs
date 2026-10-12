@@ -332,7 +332,7 @@ defineBuiltinTyCon tc ty = do
 
 defineBoolType :: forall uni fun m ann. CompilingDefault uni fun m ann => m ()
 defineBoolType = do
-  datatypeStyle <- asks $ coDatatypeStyle . ccOpts
+  datatypeStyle <- asks $ builtinDatatypeStyle . ccOpts
   defineBuiltinTyCon GHC.boolTyCon . ($> annMayInline) $ PLC.toTypeAst $ Proxy @Bool
   let
     builtinBoolName = LexName $ GHC.getName GHC.boolTyCon
@@ -366,7 +366,7 @@ defineBoolType = do
 
 defineUnitType :: forall uni fun m ann. CompilingDefault uni fun m ann => m ()
 defineUnitType = do
-  datatypeStyle <- asks $ coDatatypeStyle . ccOpts
+  datatypeStyle <- asks $ builtinDatatypeStyle . ccOpts
   defineBuiltinTyCon GHC.unitTyCon . ($> annMayInline) $ PLC.toTypeAst $ Proxy @()
   let
     builtinUnitName = LexName $ GHC.getName GHC.unitTyCon
@@ -397,7 +397,7 @@ defineUnitType = do
 -- | Add definitions for all the builtin terms to the environment.
 defineBuiltinTerms :: CompilingDefault uni fun m ann => m ()
 defineBuiltinTerms = do
-  datatypeStyle <- asks $ coDatatypeStyle . ccOpts
+  datatypeStyle <- asks $ builtinDatatypeStyle . ccOpts
   -- Error
   -- See Note [Delaying error]
   func <- delayedErrorFunc
