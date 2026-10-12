@@ -50,9 +50,44 @@ data CompileOptions = CompileOptions
   { coProfile :: ProfileOpts
   , coCoverage :: CoverageOpts
   , coDatatypeStyle :: PIR.DatatypeStyle
+  , coTargetProtocolVersion :: Int
+  -- ^ See Note [Target protocol version]
   , coRemoveTrace :: Bool
   , coInlineFix :: Bool
   }
+
+{- Note [Target protocol version]
+The ledger permits 'case' on values of built-in types only from some major
+protocol versions on:
+
+  * Bool, unit, pairs, lists and Integer: from 11 (van Rossem);
+  * Data: from 12 (Dijkstra).
+
+A script that has such a 'case' fails on a chain with an older protocol
+version, even if the Plutus Core version is right.
+
+The plugin option target-protocol-version (default 11, the version of mainnet)
+selects the code for the built-in types:
+
+  * below 11, the builtins that do not need 'case' (ifThenElse, chooseUnit,
+    chooseList, headList, fstPair, ...), as with ScottEncoding;
+  * below 12, no 'case' on Data: caseData compiles to unConstrData and a
+    'case' on the constructor index.
+-}
+
+-- | The encoding of the built-in types (Bool, unit, pairs, lists, and Integer
+-- in caseInteger). See Note [Target protocol version].
+builtinDatatypeStyle :: CompileOptions -> PIR.DatatypeStyle
+builtinDatatypeStyle opts
+  | coTargetProtocolVersion opts < 11 = PIR.ScottEncoding
+  | otherwise = coDatatypeStyle opts
+
+-- | Whether the compiled code can 'case' on Data. See Note [Target protocol
+-- version].
+canCaseOnData :: CompileOptions -> Bool
+canCaseOnData opts =
+  coTargetProtocolVersion opts >= 12
+    && coDatatypeStyle opts == PIR.SumsOfProducts
 
 data CompileContext uni fun = CompileContext
   { ccOpts :: CompileOptions
