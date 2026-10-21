@@ -47,9 +47,9 @@ unsupported x = x
 
 -- Note [mkCompiledCode lives in plutus-tx]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
--- The plugin (in plutus-tx-plugin, built into uplc-ghc) replaces a 'plinthc'
+-- The plugin (in plutus-tx-plugin, built into kardan) replaces a 'plinthc'
 -- marker with a call to 'mkCompiledCode', resolved by TH name. With the
--- compiler baked into uplc-ghc, consumer projects depend on plutus-tx but not
+-- compiler baked into kardan, consumer projects depend on plutus-tx but not
 -- on plutus-tx-plugin. So 'mkCompiledCode' must live in plutus-tx for the
 -- unit-agnostic name resolution to find a module that exposes it in the
 -- consumer's package set. See Note [Unit-id-agnostic name resolution] in
