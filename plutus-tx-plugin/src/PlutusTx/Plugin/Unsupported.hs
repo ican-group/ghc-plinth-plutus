@@ -200,7 +200,7 @@ injectUnsupportedMarkers env = do
         GHC.NoPkgQual
   case findResult of
     GHC.Found _ m -> do
-      -- See Note [Tolerate non-Plinth modules under uplc-ghc]
+      -- See Note [Tolerate non-Plinth modules under kardan]
       name <- GHC.lookupOrig m (GHC.mkVarOcc unsupportedMarkerName)
       mbThing <- liftIO $ GHC.lookupGlobal_maybe hscEnv name
       case mbThing of
@@ -212,9 +212,9 @@ injectUnsupportedMarkers env = do
         _ -> pure env
     _ -> pure env
 
-{- Note [Tolerate non-Plinth modules under uplc-ghc]
+{- Note [Tolerate non-Plinth modules under kardan]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-uplc-ghc loads this plugin as a *static* plugin, so its typeCheckResultAction
+Kardan loads this plugin as a *static* plugin, so its typeCheckResultAction
 runs on every module it compiles, not only Plinth programs. The marker
 (unsupported, anchor, plinthc) lives in PlutusTx.Plugin.Utils, and we may only
 inject a reference to it when that module is reachable from the module under

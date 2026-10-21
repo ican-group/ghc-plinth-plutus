@@ -188,7 +188,7 @@ injectAnchors env = do
         hscEnv
         (GHC.mkModuleName plinthcModName)
         GHC.NoPkgQual
-  -- See Note [Tolerate non-Plinth modules under uplc-ghc] in PlutusTx.Plugin.Unsupported
+  -- See Note [Tolerate non-Plinth modules under kardan] in PlutusTx.Plugin.Unsupported
   mbAnchorId <- case findResult of
     GHC.Found _ m -> do
       name <- GHC.lookupOrig m (GHC.mkVarOcc anchorName)
@@ -1005,7 +1005,7 @@ and the builtins) to GHC 'Name's and then matches user code against them by
 'Name' equality, which includes the package's *unit-id*. The unit-id is baked in
 at the time the plugin is compiled (against some build of plutus-tx[-plugin]).
 
-When the plugin is built into the compiler (uplc-ghc), a user's project may
+When the plugin is built into the compiler (kardan), a user's project may
 depend on a plutus-tx[-plugin] with a *different* unit-id -- e.g. one fetched
 from a source-repository-package or from CHaP rather than the local build the
 compiler was built against. A plain 'GHC.thNameToGhcName' would then resolve the
