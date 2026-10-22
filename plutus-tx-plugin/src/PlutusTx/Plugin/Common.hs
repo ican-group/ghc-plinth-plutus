@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -492,7 +493,11 @@ data PlinthDiagnostic = PlinthDiagnostic GHC.SDoc GHC.DiagnosticCode
 
 instance GHC.Diagnostic PlinthDiagnostic where
   type DiagnosticOpts PlinthDiagnostic = GHC.NoDiagnosticOpts
+#if __GLASGOW_HASKELL__ < 908
+  -- Since GHC 9.8, the default comes from HasDefaultDiagnosticOpts, which
+  -- NoDiagnosticOpts already has an instance of.
   defaultDiagnosticOpts = GHC.NoDiagnosticOpts
+#endif
   diagnosticMessage _ (PlinthDiagnostic doc _) = GHC.mkSimpleDecorated doc
   diagnosticReason _ = GHC.ErrorWithoutFlag
   diagnosticHints _ = []
