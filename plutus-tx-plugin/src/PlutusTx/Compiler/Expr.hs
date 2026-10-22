@@ -508,10 +508,10 @@ We use unfoldings to get the definitions of non-locally bound names. We then hoi
 definitions using PIR's support for definitions. This allows a relatively direct form of code
 reuse - provided that the code you are reusing has unfoldings!
 
-With kardan, users do not need to write INLINABLE pragmas:
+With plinthc, users do not need to write INLINABLE pragmas:
 - the plugin adds INLINABLE to every binding that has no inline pragma of its own (see
   'addInlineables' in PlutusTx.Plugin.Boilerplate);
-- base, ghc-prim and ghc-bignum, which kardan does not compile, are built with
+- base, ghc-prim and ghc-bignum, which plinthc does not compile, are built with
   -fexpose-all-unfoldings (hadrian flavour transformer expose_unfoldings);
 - -O0 does not imply -fomit-interface-pragmas and -fignore-interface-pragmas, see
   Note [Keep interface pragmas] in ghc:GHC.Driver.Session.
