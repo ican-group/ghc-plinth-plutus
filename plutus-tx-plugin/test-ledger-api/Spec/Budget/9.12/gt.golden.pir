@@ -87,21 +87,29 @@ letrec
                               ds
                               {bool}
                               (\(ds : bytestring) (x : These integer integer) ->
-                                 case
-                                   (all dead. bool)
-                                   (These_match
-                                      {integer}
-                                      {integer}
-                                      x
-                                      {bool}
-                                      (\(b : integer) ->
-                                         lessThanEqualsInteger b 0)
-                                      (\(a : integer) (b : integer) ->
-                                         lessThanEqualsInteger b a)
-                                      (\(a : integer) ->
-                                         lessThanEqualsInteger 0 a))
-                                   [(/\dead -> False), (/\dead -> go xs)]
-                                   {all dead. dead}))
+                                 These_match
+                                   {integer}
+                                   {integer}
+                                   x
+                                   {bool}
+                                   (\(b : integer) ->
+                                      case
+                                        (all dead. bool)
+                                        (lessThanEqualsInteger b 0)
+                                        [(/\dead -> False), (/\dead -> go xs)]
+                                        {all dead. dead})
+                                   (\(a : integer) (b : integer) ->
+                                      case
+                                        (all dead. bool)
+                                        (lessThanEqualsInteger b a)
+                                        [(/\dead -> False), (/\dead -> go xs)]
+                                        {all dead. dead})
+                                   (\(a : integer) ->
+                                      case
+                                        (all dead. bool)
+                                        (lessThanEqualsInteger 0 a)
+                                        [(/\dead -> False), (/\dead -> go xs)]
+                                        {all dead. dead})))
                        {all dead. dead}
              in
              Tuple_match
@@ -781,12 +789,16 @@ in
               {(\k v -> List (Tuple k v)) bytestring integer}
               equalsByteString
               (\(ds : (\k v -> List (Tuple k v)) bytestring integer) -> go ds)
-              (unordEqWith
-                 {bytestring}
-                 {integer}
-                 equalsByteString
-                 (\(v : integer) -> equalsInteger 0 v)
-                 (\(x : integer) (y : integer) -> equalsInteger x y))
+              (\(ds : (\k v -> List (Tuple k v)) bytestring integer)
+                (ds : (\k v -> List (Tuple k v)) bytestring integer) ->
+                 unordEqWith
+                   {bytestring}
+                   {integer}
+                   equalsByteString
+                   (\(v : integer) -> equalsInteger 0 v)
+                   (\(x : integer) (y : integer) -> equalsInteger x y)
+                   ds
+                   ds)
               l
               r)
            [True, False]) ]
