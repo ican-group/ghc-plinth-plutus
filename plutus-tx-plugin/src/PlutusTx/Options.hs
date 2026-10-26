@@ -10,12 +10,14 @@
 
 module PlutusTx.Options where
 
+import Plinth.Cost.Default (defaultTargetProtocolVersion)
 import PlutusCore.Error as PLC
 import PlutusCore.Parser as PLC
 import PlutusCore.Quote as PLC
 import PlutusCore.Version qualified as PLC
 import PlutusIR.Compiler qualified as PIR
 import PlutusIR.Compiler.Types qualified as PIR
+import PlutusLedgerApi.Common (MajorProtocolVersion (..))
 import PlutusTx.Compiler.Types
 import UntypedPlutusCore qualified as UPLC
 
@@ -90,6 +92,8 @@ data PluginOptions = PluginOptions
   @Just path@: certify, placing all output under the given directory. -}
   , _posCertifiedOptsOnly :: Bool
   , _posPreserveSourceLocations :: Bool
+  , _posReportCost :: Bool
+  -- ^ See Note [Reporting the cost] in PlutusTx.Plugin.Common
   }
 
 makeLenses ''PluginOptions
@@ -384,6 +388,12 @@ pluginOptions =
             "Try to preserve source locations for use in error messages. "
               <> "This is an experimental feature."
        in (k, PluginOption typeRep (setTrue k) posPreserveSourceLocations desc [])
+    , let k = "report-cost"
+          desc =
+            "Report the size of each compiled script, and the execution units and "
+              <> "fee of each script that takes no arguments, with the mainnet cost model "
+              <> "of the target protocol version."
+       in (k, PluginOption typeRep (setTrue k) posReportCost desc [])
     ]
 
 flag :: (a -> a) -> OptionKey -> Maybe OptionValue -> Validation ParseError (a -> a)
@@ -431,7 +441,7 @@ defaultPluginOptions :: PluginOptions
 defaultPluginOptions =
   PluginOptions
     { _posPlcTargetVersion = PLC.plcVersion110
-    , _posTargetProtocolVersion = 11
+    , _posTargetProtocolVersion = getMajorProtocolVersion defaultTargetProtocolVersion
     , _posDoTypecheck = True
     , _posDeferErrors = False
     , _posConservativeOpts = False
@@ -471,6 +481,7 @@ defaultPluginOptions =
     , _posCertify = Nothing
     , _posCertifiedOptsOnly = False
     , _posPreserveSourceLocations = False
+    , _posReportCost = False
     }
 
 processOne

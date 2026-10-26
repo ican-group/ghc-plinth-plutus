@@ -66,8 +66,9 @@ protocol versions on:
 A script that has such a 'case' fails on a chain with an older protocol
 version, even if the Plutus Core version is right.
 
-The plugin option target-protocol-version (default 11, the version of mainnet)
-selects the code for the built-in types:
+The plugin option target-protocol-version (default 11, the version of mainnet,
+see defaultTargetProtocolVersion in Plinth.Cost.Default) selects the code for
+the built-in types:
 
   * below 11, the builtins that do not need 'case' (ifThenElse, chooseUnit,
     chooseList, headList, fstPair, ...), as with ScottEncoding;

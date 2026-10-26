@@ -59,6 +59,7 @@ import GHC.Driver.Errors.Types qualified as GHC
 import GHC.Types.Error qualified as GHC
 import GHC.Types.SourceError qualified as GHC
 import GHC.Utils.Error qualified as GHC
+import GHC.Utils.Logger qualified as GHC
 import GHC.Core.FamInstEnv qualified as GHC
 import GHC.Core.Opt.Arity qualified as GHC
 import GHC.Core.Opt.OccurAnal qualified as GHC
@@ -125,7 +126,35 @@ data PluginCtx = PluginCtx
   , pcModuleName :: GHC.ModuleName
   , pcModuleModBreaks :: Maybe GHC.ModBreaks
   , pcPackageName :: String
+  , pcCurrentDef :: Maybe GHC.Var
+  -- ^ the top-level or let-bound definition under compilation
+  , pcCostReporter :: Maybe CostReporter
+  -- ^ See Note [Cost reporter hook]
   }
+
+{- Note [Cost reporter hook]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The option report-cost needs Plinth.Cost and thus a part of
+plutus-ledger-api. This module must not import them. The tests (and some
+users) import Plinth.Plugin, which imports this module, and GHC loads the
+family instance modules of the whole import closure of each imported
+module. With the ledger API in that closure, the plutus-tx-plugin tests
+needed up to 1.7 times more memory to compile.
+
+Thus the plugin gets the reporter as an argument: Plinth.Plugin.Static
+gives Plinth.Plugin.Cost.reportCost, and plinthc registers that plugin.
+Nothing else imports Plinth.Plugin.Static. With no reporter, report-cost is
+an error.
+-}
+
+-- | Reports the cost of a compiled script. See Note [Cost reporter hook]
+type CostReporter =
+  GHC.Type
+  -> UPLCProgram PLC.DefaultUni PLC.DefaultFun
+  -> BS.ByteString
+  -- ^ the serialised script
+  -> CoverageIndex
+  -> PluginM PLC.DefaultUni PLC.DefaultFun ()
 
 {- Note [Making sure unfoldings are present]
 Our plugin runs at the start of the Core pipeline. If we look around us, we will find
@@ -155,16 +184,17 @@ PIRs, PLCs and UPLCs, causing test failures. Replacing them with `coerce` avoids
 -}
 
 installCorePlugin
-  :: TH.Name
+  :: Maybe CostReporter
+  -> TH.Name
   -> [GHC.CommandLineOption]
   -> [GHC.CoreToDo]
   -> GHC.CoreM [GHC.CoreToDo]
-installCorePlugin markerTHName args rest = do
+installCorePlugin reporter markerTHName args rest = do
   -- create simplifier pass to be placed at the front
   simplPass <- mkSimplPass <$> GHC.getDynFlags
   -- instantiate our plugin pass
   pluginPass <-
-    mkPluginPass markerTHName <$> case parsePluginOptions (removeBoilerplateOpts args) of
+    mkPluginPass reporter markerTHName <$> case parsePluginOptions (removeBoilerplateOpts args) of
       Success opts -> pure opts
       Failure errs -> liftIO $ throwIO errs
   -- return the pipeline
@@ -402,8 +432,8 @@ because the user may have imported "plc" qualified or aliased it, which will fai
 {-| Our plugin works at haskell-module level granularity; the plugin
 looks at the module's top-level bindings for markers and compiles their right-hand-side core
 expressions. -}
-mkPluginPass :: TH.Name -> PluginOptions -> GHC.CoreToDo
-mkPluginPass markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> do
+mkPluginPass :: Maybe CostReporter -> TH.Name -> PluginOptions -> GHC.CoreToDo
+mkPluginPass reporter markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> do
   -- Family env code borrowed from SimplCore
   p_fam_env <- GHC.getPackageFamInstEnv
   -- See Note [Marker resolution] and Note [Unit-id-agnostic name resolution]
@@ -423,6 +453,8 @@ mkPluginPass markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> d
               , pcModuleName = GHC.moduleName thisModule
               , pcModuleModBreaks = GHC.mg_modBreaks guts
               , pcPackageName = getPackageName hscEnv thisModule
+              , pcCurrentDef = Nothing
+              , pcCostReporter = reporter
               }
       -- start looking for marker calls from the top-level binds
       GHC.bindsOnlyPass (runPluginM pctx . traverse compileBind) guts
@@ -518,13 +550,15 @@ plinthErrorCode =
 -- | Compiles all the marked expressions in the given binder into PLC literals.
 compileBind :: GHC.CoreBind -> PluginM PLC.DefaultUni PLC.DefaultFun GHC.CoreBind
 compileBind = \case
-  GHC.NonRec b rhs -> GHC.NonRec b <$> withDefinitionContext b (compileMarkedExprs rhs)
+  GHC.NonRec b rhs -> GHC.NonRec b <$> in_def b (compileMarkedExprs rhs)
   GHC.Rec bindsRhses ->
     GHC.Rec
       <$> ( for bindsRhses $ \(b, rhs) -> do
-              rhs' <- withDefinitionContext b (compileMarkedExprs rhs)
+              rhs' <- in_def b (compileMarkedExprs rhs)
               pure (b, rhs')
           )
+  where
+    in_def b = local (\c -> c {pcCurrentDef = Just b}) . withDefinitionContext b
 
 {-| Add an error context frame that names the definition under
 compilation and carries the source location of its binder. Many errors
@@ -722,7 +756,14 @@ compileMarkedExpr _locStr codeTy origE = do
 
   -- serialize the PIR, PLC, and coverageindex outputs into a bytestring.
   bsPir <- makeByteStringLiteral $ flat pirP
-  bsPlc <- makeByteStringLiteral $ flat (UPLC.UnrestrictedProgram uplcP)
+  let plcBytes = flat (UPLC.UnrestrictedProgram uplcP)
+  when (_posReportCost opts) $
+    asks pcCostReporter >>= \case
+      Just report -> report codeTy uplcP plcBytes covIdx
+      Nothing ->
+        liftIO . GHC.throwGhcExceptionIO $
+          GHC.CmdLineError "Plinth.Plugin: report-cost needs the plugin of plinthc"
+  bsPlc <- makeByteStringLiteral plcBytes
   covIdxFlat <- makeByteStringLiteral $ flat covIdx
 
   builder <- lift . lift . GHC.lookupId =<< thNameToGhcNameOrFail 'PlutusTx.Plugin.Utils.mkCompiledCode

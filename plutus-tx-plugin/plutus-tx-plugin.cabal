@@ -56,6 +56,8 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Plinth.Plugin
+    Plinth.Plugin.Cost
+    Plinth.Plugin.Static
     PlutusTx.Compiler.Error
     PlutusTx.Options
     PlutusTx.Plugin.Common
@@ -91,9 +93,11 @@ library
     , ghc-boot
     , lens
     , mtl
+    , plinth-cost:core       ^>=1.70
     , plutus-core            ^>=1.70
     , plutus-core:flat
     , plutus-core:plutus-ir
+    , plutus-ledger-api      ^>=1.70
     , plutus-metatheory      ^>=1.70
     , plutus-tx              ^>=1.70
     , prettyprinter
