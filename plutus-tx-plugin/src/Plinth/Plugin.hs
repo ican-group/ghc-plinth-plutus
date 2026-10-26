@@ -8,10 +8,10 @@ import PlutusTx.Plugin.Common
 import PlutusTx.Plugin.Unsupported
 import PlutusTx.Plugin.Utils
 
-import Control.Exception (throwIO)
 import Control.Lens ((^.))
 import Control.Monad.IO.Class (liftIO)
 import Data.Either.Validation
+import Data.Text qualified as Text
 import GHC.Plugins qualified as GHC
 
 plugin :: GHC.Plugin
@@ -21,7 +21,9 @@ plugin =
     , GHC.typeCheckResultAction = \cliOpts _modSummary env -> do
         opts <- case parsePluginOptions (removeBoilerplateOpts cliOpts) of
           Success o -> pure o
-          Failure errs -> liftIO $ throwIO errs
+          Failure errs ->
+            liftIO . GHC.throwGhcExceptionIO . GHC.CmdLineError . Text.unpack $
+              renderPlinthParseErrors errs
         let maybeInjectAnchors =
               if opts ^. posPreserveSourceLocations then injectAnchors else pure
         maybeInjectAnchors env >>= injectUnsupportedMarkers >>= addInlineables

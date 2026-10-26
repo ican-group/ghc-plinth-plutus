@@ -137,25 +137,39 @@ instance Show ParseErrors where
 instance Exception ParseErrors
 
 renderParseError :: ParseError -> Text
-renderParseError = \case
+renderParseError = renderParseErrorWith (Text.pack . show) id
+
+{-| Render the errors with the flag spelling of plinthc: option @k@ is
+@-fplinth-k@. See Note [Plinth option flags] in GHC.Driver.Session. -}
+renderPlinthParseErrors :: ParseErrors -> Text
+renderPlinthParseErrors (ParseErrors errs) =
+  "Plinth.Plugin: incorrect options:\n"
+    <> Text.intercalate "\n" (fmap (renderParseErrorWith plinth_flag plinth_flag) (toList errs))
+  where
+    plinth_flag k = "-fplinth-" <> k
+
+{-| Render an error. The arguments render the option key of the error and the
+keys of the suggestions. -}
+renderParseErrorWith :: (OptionKey -> Text) -> (OptionKey -> Text) -> ParseError -> Text
+renderParseErrorWith key sugg = \case
   CannotParseValue k v detail ->
     "Cannot parse value "
       <> Text.pack (show v)
       <> " for option "
-      <> Text.pack (show k)
+      <> key k
       <> ": "
       <> detail
   UnexpectedValue k v ->
     "Option "
-      <> Text.pack (show k)
+      <> key k
       <> " is a flag and does not take a value, but was given "
       <> Text.pack (show v)
   MissingValue k ->
-    "Option " <> Text.pack (show k) <> " needs a value"
+    "Option " <> key k <> " needs a value"
   UnrecognisedOption k suggs ->
-    "Unrecognised option: " <> Text.pack (show k) <> "." <> case suggs of
+    "Unrecognised option: " <> key k <> "." <> case suggs of
       [] -> ""
-      _ -> "\nDid you mean one of:\n" <> Text.intercalate "\n" suggs
+      _ -> "\nDid you mean one of:\n" <> Text.intercalate "\n" (fmap sugg suggs)
 
 -- | Definition of plugin options.
 pluginOptions :: Map OptionKey PluginOption
