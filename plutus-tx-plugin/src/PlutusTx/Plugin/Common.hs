@@ -98,6 +98,7 @@ import Data.ByteString.Unsafe qualified as BSUnsafe
 import Data.Either.Validation
 import Data.Generics.Uniplate.Data
 import Data.Map qualified as Map
+import Data.List (find)
 import Data.Maybe (catMaybes, fromJust, listToMaybe, mapMaybe)
 import GHC.Data.Maybe (MaybeErr (..))
 import Data.Monoid.Extra (mwhen)
@@ -125,7 +126,33 @@ data PluginCtx = PluginCtx
   , pcModuleName :: GHC.ModuleName
   , pcModuleModBreaks :: Maybe GHC.ModBreaks
   , pcPackageName :: String
+  , pcGateOn :: Bool
+  -- ^ Did the Plinth gate of plinthc accept this module? See Note [The Plinth gate and the plugin]
   }
+
+{- Note [The Plinth gate and the plugin]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+plinthc checks every Plinth splice at typecheck time (the "gate", see
+GHC.Plinth.Check in the GHC fork) and rejects invalid code before the plugin
+runs. So when the gate is on, a failure of the Core to PIR compile is a
+compiler bug, or a GHC transformation of the code that the gate cannot
+see (e.g. a stage violation under Strict). 'runPluginM' then reports the
+error as an internal error with the code PLINTH-00009, and 'runCompiler'
+does not reject the GADTs and PolyKinds extensions module-wide: the gate
+checks each declaration.
+
+The plugin must build with a stock GHC, which has no gate flag, so the flag
+is looked up by its name ('plinthGateOn').
+-}
+
+-- | Is the Plinth gate of plinthc on for this module? False under a stock GHC.
+plinthGateOn :: GHC.DynFlags -> Bool
+plinthGateOn dflags = flagOn "Opt_PlinthGate" Prelude.&& Prelude.not (flagOn "Opt_PlinthGateWarn")
+  where
+    -- -fplinth-gate-warn only warns: the plugin must still report the errors.
+    flagOn name = case find ((== name) . show) (enumFrom (toEnum 0 :: GHC.GeneralFlag)) of
+      Just flag -> GHC.gopt flag dflags
+      Nothing -> False
 
 {- Note [Making sure unfoldings are present]
 Our plugin runs at the start of the Core pipeline. If we look around us, we will find
@@ -413,6 +440,7 @@ mkPluginPass markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> d
     -- See Note [Marker resolution]
     (Just markerName, Just anchorGhcName) -> do
       hscEnv <- GHC.getHscEnv
+      dflags <- GHC.getDynFlags
       let thisModule = GHC.mg_module guts
           pctx =
             PluginCtx
@@ -423,6 +451,7 @@ mkPluginPass markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> d
               , pcModuleName = GHC.moduleName thisModule
               , pcModuleModBreaks = GHC.mg_modBreaks guts
               , pcPackageName = getPackageName hscEnv thisModule
+              , pcGateOn = plinthGateOn dflags
               }
       -- start looking for marker calls from the top-level binds
       GHC.bindsOnlyPass (runPluginM pctx . traverse compileBind) guts
@@ -464,11 +493,25 @@ runPluginM pctx act = do
           err' :: CompileError uni fun Ann
           err' = foldl' (\e (p, c) -> WithContextC p c e) (NoContext (fst errStack)) (fst truncated)
 
-      let msg =
-            PP.vsep
-              [ "Plinth Compilation Error:"
-              , PP.pretty (mapContext fst err')
-              ]
+      -- See Note [The Plinth gate and the plugin]
+      let msg
+            | pcGateOn pctx =
+                PP.vsep
+                  [ "Plinth internal error: the Plinth check accepted this code, but the"
+                  , "compiler failed to translate it. This is a compiler bug, or a GHC"
+                  , "transformation of the code that the check cannot see. Please report it at"
+                  , "https://github.com/ican-group/ghc-plinth/issues with this message."
+                  , "Underlying error" PP.<+> PP.brackets (PP.pretty (showErrorCode (plinthErrorCode (fst errStack)))) <> ":"
+                  , PP.indent 2 (PP.pretty (mapContext fst err'))
+                  ]
+            | otherwise =
+                PP.vsep
+                  [ "Plinth Compilation Error:"
+                  , PP.pretty (mapContext fst err')
+                  ]
+          code
+            | pcGateOn pctx = internalErrorCode
+            | otherwise = plinthErrorCode (fst errStack)
 
       -- Throw a GHC diagnostic located at the innermost source span the
       -- error carries (or at the failing definition, see
@@ -484,7 +527,7 @@ runPluginM pctx act = do
       GHC.throwOneError
         . GHC.mkPlainErrorMsgEnvelope srcSpan
         . GHC.ghcUnknownMessage
-        $ PlinthDiagnostic doc (plinthErrorCode (fst errStack))
+        $ PlinthDiagnostic doc code
 
 {-| The diagnostic GHC reports when a Plinth compilation fails. Going
 through the 'GHC.Diagnostic' class gives the error a PLINTH error code
@@ -514,6 +557,14 @@ plinthErrorCode =
     FreeVariableError {} -> 5
     InvalidMarkerError {} -> 6
     CoreNameLookupError {} -> 7
+
+-- | The code of a failure after the Plinth gate accepted the code.
+-- See Note [The Plinth gate and the plugin]
+internalErrorCode :: GHC.DiagnosticCode
+internalErrorCode = GHC.DiagnosticCode "PLINTH" 9
+
+showErrorCode :: GHC.DiagnosticCode -> String
+showErrorCode (GHC.DiagnosticCode ns n) = ns <> "-" <> replicate (5 - length (show n)) '0' <> show n
 
 -- | Compiles all the marked expressions in the given binder into PLC literals.
 compileBind :: GHC.CoreBind -> PluginM PLC.DefaultUni PLC.DefaultFun GHC.CoreBind
@@ -754,7 +805,7 @@ runCompiler
   -> GHC.CoreExpr
   -> m (PIRProgram uni fun, UPLCProgram uni fun)
 runCompiler packageName moduleName opts expr = do
-  GHC.DynFlags {GHC.extensions = extensions} <- asks ccFlags
+  dflags@GHC.DynFlags {GHC.extensions = extensions} <- asks ccFlags
   let
     enabledExtensions =
       mapMaybe
@@ -770,7 +821,8 @@ runCompiler packageName moduleName opts expr = do
     unsupportedExtensions =
       filter (`elem` extensionBlacklist) enabledExtensions
 
-  unless (null unsupportedExtensions) $
+  -- See Note [The Plinth gate and the plugin]: the gate checks each declaration.
+  unless (null unsupportedExtensions Prelude.|| plinthGateOn dflags) $
     throwPlain $
       UnsupportedError $
         "Following extensions are not supported: "

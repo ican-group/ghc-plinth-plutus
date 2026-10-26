@@ -30,7 +30,7 @@ For each boolean option, you can add a `no-` prefix to switch it off, such as `n
 |`coverage-location`|Bool|False|Add location coverage annotations in the trace output|
 |`cse-which-subterms`|CseWhichSubterms|ExcludeWorkFree|Which subterms CSE should consider (after uniquely renaming the program)|
 |`datatypes`|DatatypeCompilationOpts|SumsOfProducts|Set datatype encoding style|
-|`defer-errors`|Bool|False|If a compilation error happens and this option is turned on, the compilation error is suppressed and the original Haskell expression is replaced with a runtime-error expression.|
+|`defer-errors`|Bool|False|If a compilation error happens and this option is turned on, the compilation error is suppressed and the original Haskell expression is replaced with a runtime-error expression. Under plinthc it also turns off the Plinth check of the type checker (-fno-plinth-gate), so that the error is deferred and not reported.|
 |`dump-compilation-trace`|Bool|False|Dump compilation trace for debugging|
 |`dump-pir`|Bool|False|Dump Plutus IR|
 |`dump-tplc`|Bool|False|Dump Typed Plutus Core|
@@ -45,6 +45,7 @@ For each boolean option, you can add a `no-` prefix to switch it off, such as `n
 |`max-simplifier-iterations-uplc`|Int|12|Set the max iterations for the UPLC optimizer|
 |`optimize`|Bool|True|Run optimization passes such as simplification and floating let-bindings.|
 |`pedantic`|Bool|False|Run type checker after each compilation pass|
+|`plinth-gate`|Bool|True|Under plinthc, check every Plinth splice of the module at type-checking time (the default). `no-plinth-gate` leaves the check to the Core to PIR compile, for code that only that path accepts. A stock GHC ignores the option.|
 |`preserve-logging`|Bool|True|Turn off optimisations that may alter (i.e., add, remove or change the order of) trace messages. Implied by `conservative-optimisation`.|
 |`preserve-source-locations`|Bool|False|Try to preserve source locations for use in error messages. This is an experimental feature.|
 |`profile-all`|ProfileOpts|None|Set profiling options to All, which adds tracing when entering and exiting a term.|

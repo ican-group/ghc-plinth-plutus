@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -fplugin Plinth.Plugin #-}
+{-# OPTIONS_GHC -fplugin Plinth.Plugin -fplugin-opt Plinth.Plugin:no-plinth-gate #-} -- same line: the goldens embed line numbers. `func` matches on Integer literals, see Note [Literal patterns] in GHC.Plinth.Walk
 {-# OPTIONS_GHC -fplugin-opt Plinth.Plugin:context-level=0 #-}
 {-# OPTIONS_GHC -fplugin-opt Plinth.Plugin:max-cse-iterations=0 #-}
 {-# OPTIONS_GHC -fplugin-opt Plinth.Plugin:max-simplifier-iterations-pir=0 #-}

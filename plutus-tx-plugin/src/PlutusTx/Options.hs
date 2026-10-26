@@ -47,6 +47,9 @@ data PluginOptions = PluginOptions
   -- ^ See Note [Target protocol version] in PlutusTx.Compiler.Types
   , _posDoTypecheck :: Bool
   , _posDeferErrors :: Bool
+  , _posPlinthGate :: Bool
+  -- ^ plinthc only: run the Plinth check of the type checker on this module.
+  -- The plugin itself does nothing with it; plinthc reads the option.
   , _posConservativeOpts :: Bool
   , _posContextLevel :: Int
   , _posDumpPir :: Bool
@@ -188,8 +191,16 @@ pluginOptions =
           desc =
             "If a compilation error happens and this option is turned on, "
               <> "the compilation error is suppressed and the original Haskell "
-              <> "expression is replaced with a runtime-error expression."
+              <> "expression is replaced with a runtime-error expression. "
+              <> "Under plinthc it also turns off the Plinth check of the type checker "
+              <> "(-fno-plinth-gate), so that the error is deferred and not reported."
        in (k, PluginOption typeRep (setTrue k) posDeferErrors desc [])
+    , let k = "plinth-gate"
+          desc =
+            "Under plinthc, check every Plinth splice of the module at type-checking time "
+              <> "(the default). `no-plinth-gate` leaves the check to the Core to PIR compile, "
+              <> "for code that only that path accepts. A stock GHC ignores the option."
+       in (k, PluginOption typeRep (setTrue k) posPlinthGate desc [])
     , let k = "conservative-optimisation"
           desc =
             "When conservative optimisation is used, only the optimisations that "
@@ -420,6 +431,7 @@ defaultPluginOptions =
     , _posTargetProtocolVersion = 11
     , _posDoTypecheck = True
     , _posDeferErrors = False
+    , _posPlinthGate = True
     , _posConservativeOpts = False
     , _posContextLevel = 1
     , _posDumpPir = False
