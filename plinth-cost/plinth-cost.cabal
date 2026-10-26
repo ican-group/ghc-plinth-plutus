@@ -1,0 +1,89 @@
+cabal-version: 3.0
+name:          plinth-cost
+version:       1.70.0.0
+license:       Apache-2.0
+synopsis:      On-chain cost of Plinth scripts
+description:
+  Size, execution units and fees of compiled Plinth scripts, computed with
+  the cost model of mainnet at a given protocol version. The evaluation uses
+  the same functions as the ledger.
+
+category:      Language
+build-type:    Simple
+
+common lang
+  default-language:   Haskell2010
+  default-extensions:
+    DerivingStrategies
+    ImportQualifiedPost
+    LambdaCase
+    OverloadedStrings
+    ScopedTypeVariables
+
+  ghc-options:
+    -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wredundant-constraints -Wunused-packages
+
+-- The core: parameters and evaluation. The Plinth plugin depends on it, so
+-- it must stay small (it is linked into plinthc).
+library core
+  import:          lang
+  visibility:      public
+  hs-source-dirs:  core
+  exposed-modules:
+    Plinth.Cost
+    Plinth.Cost.Default
+    Plinth.Cost.Params
+
+  build-depends:
+    , base               >=4.9 && <5
+    , bytestring
+    , mtl
+    , plutus-core         ^>=1.70
+    , plutus-ledger-api   ^>=1.70
+    , plutus-tx           ^>=1.70
+    , text
+
+-- The library for users: the core, ScriptContext builders and Template
+-- Haskell splices that report the cost at compile time.
+library
+  import:             lang
+  hs-source-dirs:     src
+  exposed-modules:
+    Plinth.Cost.Context
+    Plinth.Cost.TH
+
+  reexported-modules:
+    , Plinth.Cost
+    , Plinth.Cost.Params
+
+  build-depends:
+    , base                                         >=4.9 && <5
+    , plinth-cost:core
+    , plutus-core                                  ^>=1.70
+    , plutus-ledger-api                            ^>=1.70
+    , plutus-ledger-api:plutus-ledger-api-testlib
+    , plutus-tx                                    ^>=1.70
+    , template-haskell
+    , text
+
+test-suite plinth-cost-test
+  import:         lang
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Spec.hs
+  other-modules:
+    Inputs
+    Scripts
+  ghc-options:
+    -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+    -fno-full-laziness -fno-spec-constr -fno-specialise -fno-strictness
+    -fno-unbox-strict-fields -fno-unbox-small-strict-fields
+
+  build-depends:
+    , base               >=4.9 && <5
+    , plinth-cost
+    , plutus-ledger-api  ^>=1.70
+    , plutus-tx          ^>=1.70
+    , tasty
+    , tasty-hunit
