@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -423,6 +424,25 @@ stageViolationError tc =
     GHC.$+$ ghcStrictnessNote
 
 integerCaseError :: GHC.SDoc
+#if __GLASGOW_HASKELL__ >= 912
+-- plinthc 9.12 compiles patterns on Integer literals.
+-- See Note [Plinth: integerEq in stable unfoldings] in ghc-bignum:GHC.Num.Integer
+integerCaseError =
+  "Cannot pattern match on a value of type 'Integer'."
+    GHC.$+$ ""
+    GHC.$+$ "This happens when the code, or a function from a GHC library that it"
+    GHC.$+$ "uses, matches on the internal constructors of 'Integer' (IS, IP, IN)."
+    GHC.$+$ "Plinth compiles 'Integer' to the builtin integer type, which has no"
+    GHC.$+$ "constructors. Patterns on integer literals are supported:"
+    GHC.$+$ ""
+    GHC.$+$ "  f 42 = ..."
+    GHC.$+$ "  f n  = ..."
+    GHC.$+$ ""
+    GHC.$+$ "Use the functions from 'PlutusTx.Prelude' on 'Integer', for example"
+    GHC.$+$ "(==), compare, or divide."
+    GHC.$+$ ""
+    GHC.$+$ ghcStrictnessNote
+#else
 integerCaseError =
   "Cannot pattern match on a value of type 'Integer'."
     GHC.$+$ ""
@@ -441,6 +461,7 @@ integerCaseError =
     GHC.$+$ "      | otherwise = ..."
     GHC.$+$ ""
     GHC.$+$ ghcStrictnessNote
+#endif
 
 -- | Get the constructors of the given 'TyCon' as PLC terms.
 getConstructors :: CompilingDefault uni fun m ann => GHC.TyCon -> m [PIRTerm uni fun]
