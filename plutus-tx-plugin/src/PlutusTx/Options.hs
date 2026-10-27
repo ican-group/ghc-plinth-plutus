@@ -10,12 +10,14 @@
 
 module PlutusTx.Options where
 
+import Plinth.Cost.Default (defaultTargetProtocolVersion)
 import PlutusCore.Error as PLC
 import PlutusCore.Parser as PLC
 import PlutusCore.Quote as PLC
 import PlutusCore.Version qualified as PLC
 import PlutusIR.Compiler qualified as PIR
 import PlutusIR.Compiler.Types qualified as PIR
+import PlutusLedgerApi.Common (MajorProtocolVersion (..))
 import PlutusTx.Compiler.Types
 import UntypedPlutusCore qualified as UPLC
 
@@ -90,6 +92,8 @@ data PluginOptions = PluginOptions
   @Just path@: certify, placing all output under the given directory. -}
   , _posCertifiedOptsOnly :: Bool
   , _posPreserveSourceLocations :: Bool
+  , _posReportCost :: Bool
+  -- ^ See Note [Reporting the cost] in PlutusTx.Plugin.Common
   }
 
 makeLenses ''PluginOptions
@@ -137,25 +141,39 @@ instance Show ParseErrors where
 instance Exception ParseErrors
 
 renderParseError :: ParseError -> Text
-renderParseError = \case
+renderParseError = renderParseErrorWith (Text.pack . show) id
+
+{-| Render the errors with the flag spelling of plinthc: option @k@ is
+@-fplinth-k@. See Note [Plinth option flags] in GHC.Driver.Session. -}
+renderPlinthParseErrors :: ParseErrors -> Text
+renderPlinthParseErrors (ParseErrors errs) =
+  "Plinth.Plugin: incorrect options:\n"
+    <> Text.intercalate "\n" (fmap (renderParseErrorWith plinth_flag plinth_flag) (toList errs))
+  where
+    plinth_flag k = "-fplinth-" <> k
+
+{-| Render an error. The arguments render the option key of the error and the
+keys of the suggestions. -}
+renderParseErrorWith :: (OptionKey -> Text) -> (OptionKey -> Text) -> ParseError -> Text
+renderParseErrorWith key sugg = \case
   CannotParseValue k v detail ->
     "Cannot parse value "
       <> Text.pack (show v)
       <> " for option "
-      <> Text.pack (show k)
+      <> key k
       <> ": "
       <> detail
   UnexpectedValue k v ->
     "Option "
-      <> Text.pack (show k)
+      <> key k
       <> " is a flag and does not take a value, but was given "
       <> Text.pack (show v)
   MissingValue k ->
-    "Option " <> Text.pack (show k) <> " needs a value"
+    "Option " <> key k <> " needs a value"
   UnrecognisedOption k suggs ->
-    "Unrecognised option: " <> Text.pack (show k) <> "." <> case suggs of
+    "Unrecognised option: " <> key k <> "." <> case suggs of
       [] -> ""
-      _ -> "\nDid you mean one of:\n" <> Text.intercalate "\n" suggs
+      _ -> "\nDid you mean one of:\n" <> Text.intercalate "\n" (fmap sugg suggs)
 
 -- | Definition of plugin options.
 pluginOptions :: Map OptionKey PluginOption
@@ -370,6 +388,12 @@ pluginOptions =
             "Try to preserve source locations for use in error messages. "
               <> "This is an experimental feature."
        in (k, PluginOption typeRep (setTrue k) posPreserveSourceLocations desc [])
+    , let k = "report-cost"
+          desc =
+            "Report the size of each compiled script, and the execution units and "
+              <> "fee of each script that takes no arguments, with the mainnet cost model "
+              <> "of the target protocol version."
+       in (k, PluginOption typeRep (setTrue k) posReportCost desc [])
     ]
 
 flag :: (a -> a) -> OptionKey -> Maybe OptionValue -> Validation ParseError (a -> a)
@@ -417,7 +441,7 @@ defaultPluginOptions :: PluginOptions
 defaultPluginOptions =
   PluginOptions
     { _posPlcTargetVersion = PLC.plcVersion110
-    , _posTargetProtocolVersion = 11
+    , _posTargetProtocolVersion = getMajorProtocolVersion defaultTargetProtocolVersion
     , _posDoTypecheck = True
     , _posDeferErrors = False
     , _posConservativeOpts = False
@@ -457,6 +481,7 @@ defaultPluginOptions =
     , _posCertify = Nothing
     , _posCertifiedOptsOnly = False
     , _posPreserveSourceLocations = False
+    , _posReportCost = False
     }
 
 processOne

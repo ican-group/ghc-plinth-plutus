@@ -31,6 +31,7 @@ packages: cardano-constitution
           plutus-metatheory
           plutus-tx
           plutus-tx-plugin
+          plinth-cost
           doc/docusaurus
 
 -- We never, ever, want this.
