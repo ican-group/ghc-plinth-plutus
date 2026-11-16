@@ -125,7 +125,24 @@ data PluginCtx = PluginCtx
   , pcModuleName :: GHC.ModuleName
   , pcModuleModBreaks :: Maybe GHC.ModBreaks
   , pcPackageName :: String
+  , pcModuleLoc :: GHC.SrcSpan
+  -- ^ See Note [Every Plinth error has a location]
   }
+
+{- Note [Every Plinth error has a location]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+'runPluginM' reports a compilation error at the innermost source span of
+its context frames. 'withDefinitionContext' adds a frame with the span of
+the binder for each definition that contains a marker, but a binder that
+GHC generated can have no span. Without a span, GHC prints the error with
+"<no location info>" and the user cannot find the module that failed.
+
+'pcModuleLoc' is the last fall-back: the start of the module under
+compilation.
+
+  Before: <no location info>: error: [PLINTH-00003]
+  After:  src/Foo.hs:1:1: error: [PLINTH-00003]
+-}
 
 {- Note [Making sure unfoldings are present]
 Our plugin runs at the start of the Core pipeline. If we look around us, we will find
@@ -423,6 +440,7 @@ mkPluginPass markerTHName opts = GHC.CoreDoPluginPass "Core to PLC" $ \guts -> d
               , pcModuleName = GHC.moduleName thisModule
               , pcModuleModBreaks = GHC.mg_modBreaks guts
               , pcPackageName = getPackageName hscEnv thisModule
+              , pcModuleLoc = GHC.srcLocSpan (GHC.srcSpanStart (GHC.mg_loc guts))
               }
       -- start looking for marker calls from the top-level binds
       GHC.bindsOnlyPass (runPluginM pctx . traverse compileBind) guts
@@ -477,9 +495,10 @@ runPluginM pctx act = do
       -- tools can parse, and GHC renders the source snippet with the
       -- caret itself; a plain 'ProgramError' would bypass the GHC
       -- diagnostic pipeline and print "<no location info>".
+      -- See Note [Every Plinth error has a location].
       let srcSpan = case snd truncated of
             Just ss -> GHC.RealSrcSpan ss Strict.Nothing
-            Nothing -> GHC.noSrcSpan
+            Nothing -> pcModuleLoc pctx
           doc = GHC.vcat (GHC.text <$> lines (show msg))
       GHC.throwOneError
         . GHC.mkPlainErrorMsgEnvelope srcSpan
