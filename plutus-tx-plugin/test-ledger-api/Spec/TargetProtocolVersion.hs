@@ -3,8 +3,9 @@
 
 {-| Evaluate a validator with the ledger API at the protocol version that it
 targets. The Data decoders of 'makeIsDataIndexed' use 'case' on Data at
-protocol version 12, and the ledger rejects that before version 12. See
-Note [Target protocol version] in PlutusTx.Compiler.Types. -}
+protocol version 12, in Plutus Core 1.2.0, and the ledger rejects that
+version before protocol version 12. See Note [Target protocol version] in
+PlutusTx.Compiler.Types. -}
 module Spec.TargetProtocolVersion (tests) where
 
 import PlutusLedgerApi.Common.Versions (MajorProtocolVersion, dijkstraPV, vanRossemPV)
@@ -34,11 +35,11 @@ tests =
     , testGroup
         "compiled for PV12"
         [ expect True "evaluates at PV12" dijkstraPV shapeValidatorPV12 rect
-        , testCase "fails at PV11: no case on Data" $
+        , testCase "fails at PV11: Plutus Core 1.2.0 is not available" $
             case evaluate vanRossemPV shapeValidatorPV12 rect of
               Left err
-                | "'case' over a value of a built-in type failed" `isInfixOf` show err -> pure ()
-                | otherwise -> assertFailure ("wrong error: " <> show err)
+                | "PlutusCoreLanguageNotAvailableError" `isInfixOf` err -> pure ()
+                | otherwise -> assertFailure ("wrong error: " <> err)
               Right _ -> assertFailure "evaluation succeeded"
         ]
     ]
@@ -55,7 +56,7 @@ evalCtx =
     fmap snd V3.costModelParamsForTesting
 
 -- | Evaluate the validator at a protocol version, and expect success or
--- failure.
+-- failure. The failure can be at deserialisation or at evaluation.
 expect
   :: Bool
   -> TestName
@@ -64,7 +65,7 @@ expect
   -> V3.Data
   -> TestTree
 expect success name pv code arg = testCase name $ case (success, evaluate pv code arg) of
-  (True, Left err) -> assertFailure ("evaluation failed: " <> show err)
+  (True, Left err) -> assertFailure ("evaluation failed: " <> err)
   (False, Right _) -> assertFailure "evaluation succeeded"
   _ -> pure ()
 
@@ -72,7 +73,7 @@ evaluate
   :: MajorProtocolVersion
   -> CompiledCode (BuiltinData -> BuiltinUnit)
   -> V3.Data
-  -> Either V3.EvaluationError V3.ExBudget
-evaluate pv code arg = snd $ V3.evaluateScriptCounting pv V3.Quiet evalCtx script arg
-  where
-    script = either (error . show) id $ V3.deserialiseScript pv (V3.serialiseCompiledCode code)
+  -> Either String V3.ExBudget
+evaluate pv code arg = do
+  script <- first show $ V3.deserialiseScript pv (V3.serialiseCompiledCode code)
+  first show . snd $ V3.evaluateScriptCounting pv V3.Quiet evalCtx script arg
