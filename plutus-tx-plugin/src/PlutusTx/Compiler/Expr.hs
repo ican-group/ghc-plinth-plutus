@@ -513,13 +513,11 @@ With plinthc, users do not need to write INLINABLE pragmas:
 - GHC adds INLINABLE to every top-level binding that has no inline pragma of its own,
   and changes NOINLINE [n] to INLINABLE [n] (see Note [Default INLINABLE pragmas] in
   ghc:GHC.Tc.Module). GHC does it for every module that it compiles, thus also for
-  the boot libraries (base, containers, etc.). With GHC < 9.12 the plugin adds the
-  pragmas (see Note [INLINABLE pragmas by the plugin] in PlutusTx.Plugin.Boilerplate)
-  and only base, ghc-prim and ghc-bignum have all their unfoldings (hadrian flavour
-  transformer expose_unfoldings);
+  the boot libraries (base, containers, etc.). The plugin cannot do it: it does not
+  run on the boot libraries;
 - -O0 does not imply -fomit-interface-pragmas and -fignore-interface-pragmas, see
   Note [Keep interface pragmas] in ghc:GHC.Driver.Session.
-Thus only a NOINLINE (without a phase, with GHC >= 9.12) or OPAQUE pragma (or an explicit
+Thus only a NOINLINE (without a phase) or OPAQUE pragma (or an explicit
 -fomit-interface-pragmas) hides a definition ('noUnfoldingHint').
 
 (Since unfoldings are updated as the compiler progresses, unfoldings for bindings in other

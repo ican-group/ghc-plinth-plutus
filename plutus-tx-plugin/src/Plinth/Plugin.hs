@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
 
 module Plinth.Plugin (plugin, plinthc) where
@@ -25,13 +24,7 @@ plugin =
           Failure errs -> liftIO $ throwIO errs
         let maybeInjectAnchors =
               if opts ^. posPreserveSourceLocations then injectAnchors else pure
-        -- See Note [INLINABLE pragmas by the plugin] in
-        -- PlutusTx.Plugin.Boilerplate.
-        maybeInjectAnchors env
-          >>= injectUnsupportedMarkers
-#if __GLASGOW_HASKELL__ < 912
-          >>= addInlineables
-#endif
+        maybeInjectAnchors env >>= injectUnsupportedMarkers
     , GHC.pluginRecompile = GHC.flagRecompile
     , GHC.installCoreToDos = installCorePlugin 'plinthc
     }
