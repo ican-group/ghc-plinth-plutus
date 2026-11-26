@@ -1,15 +1,23 @@
+{-# LANGUAGE CPP #-}
+
 {-| Insert necessary or recommended GHC flags and extensions via a driver plugin.
 See https://plutus.cardano.intersectmbo.org/docs/using-plinth/extensions-flags-pragmas -}
 module PlutusTx.Plugin.Boilerplate where
 
+#if __GLASGOW_HASKELL__ < 912
 import PlutusTx.Compiler.Compat qualified as Compat
+#endif
 
 import GHC.Driver.Flags qualified as GHC
+#if __GLASGOW_HASKELL__ < 912
 import GHC.Hs qualified as GHC
+#endif
 import GHC.LanguageExtensions qualified as GHC
 import GHC.Plugins qualified as GHC
+#if __GLASGOW_HASKELL__ < 912
 import GHC.Tc.Types qualified as GHC
 import GHC.Types.SourceText qualified as GHC
+#endif
 
 {-| Unfortunately, it seems like the `Strict` extension set by the driver plugin cannot be
 unset via @LANGUAGE NoStrict@. So we add a plugin flag to allow users to do so. -}
@@ -44,6 +52,17 @@ addFlagsAndExts opts env = pure env {GHC.hsc_dflags = dflags}
     setStrict :: GHC.DynFlags -> GHC.DynFlags
     setStrict =
       if optNoStrict `elem` opts then id else (`GHC.xopt_set` GHC.Strict)
+
+#if __GLASGOW_HASKELL__ < 912
+-- Note [INLINABLE pragmas by the plugin]
+-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-- Plinth needs the unfoldings of the definitions that a script uses, thus
+-- plinthc puts an INLINABLE pragma on the bindings without a pragma.
+--
+-- With GHC >= 9.12, the GHC fork does it for every module (see Note
+-- [Default INLINABLE pragmas] in ghc:GHC.Tc.Module), thus also for the boot
+-- libraries. With older GHCs, 'addInlineables' does it for the modules
+-- that plinthc compiles.
 
 -- | Add INLINEABLE to all bindings that carry no user-written inline pragma.
 addInlineables :: GHC.TcGblEnv -> GHC.TcM GHC.TcGblEnv
@@ -90,3 +109,4 @@ inlineable =
     , GHC.inl_act = GHC.AlwaysActive
     , GHC.inl_rule = GHC.FunLike
     }
+#endif

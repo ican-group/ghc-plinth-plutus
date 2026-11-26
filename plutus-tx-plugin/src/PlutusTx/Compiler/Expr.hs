@@ -510,14 +510,17 @@ definitions using PIR's support for definitions. This allows a relatively direct
 reuse - provided that the code you are reusing has unfoldings!
 
 With plinthc, users do not need to write INLINABLE pragmas:
-- the plugin adds INLINABLE to every binding that has no inline pragma of its own (see
-  'addInlineables' in PlutusTx.Plugin.Boilerplate);
-- base, ghc-prim and ghc-bignum, which plinthc does not compile, are built with
-  -fexpose-all-unfoldings (hadrian flavour transformer expose_unfoldings);
+- GHC adds INLINABLE to every top-level binding that has no inline pragma of its own,
+  and changes NOINLINE [n] to INLINABLE [n] (see Note [Default INLINABLE pragmas] in
+  ghc:GHC.Tc.Module). GHC does it for every module that it compiles, thus also for
+  the boot libraries (base, containers, etc.). With GHC < 9.12 the plugin adds the
+  pragmas (see Note [INLINABLE pragmas by the plugin] in PlutusTx.Plugin.Boilerplate)
+  and only base, ghc-prim and ghc-bignum have all their unfoldings (hadrian flavour
+  transformer expose_unfoldings);
 - -O0 does not imply -fomit-interface-pragmas and -fignore-interface-pragmas, see
   Note [Keep interface pragmas] in ghc:GHC.Driver.Session.
-Thus only a NOINLINE or OPAQUE pragma (or an explicit -fomit-interface-pragmas) hides a
-definition ('noUnfoldingHint').
+Thus only a NOINLINE (without a phase, with GHC >= 9.12) or OPAQUE pragma (or an explicit
+-fomit-interface-pragmas) hides a definition ('noUnfoldingHint').
 
 (Since unfoldings are updated as the compiler progresses, unfoldings for bindings in other
 modules are typically fully-optimized. The exception is the unfoldings for INLINABLE bindings,
